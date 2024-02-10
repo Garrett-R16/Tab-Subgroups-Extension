@@ -1,0 +1,19 @@
+{
+    "name": "test2",
+    "manifest_version": 3,
+    "version": "1.0.0",
+    "background": {
+        "service_worker": "service-worker.js",
+        "type": "module"
+    },
+    "action": { },
+    "permissions": [
+        "scripting",
+        "tabGroups",
+        "tabs"
+    ],
+    "host_permissions": [
+        "http://*/*",
+        "https://*/*"
+    ]
+}
