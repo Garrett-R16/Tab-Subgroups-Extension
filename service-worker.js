@@ -1,19 +1,26 @@
 console.log(chrome.tabGroups);
+
+//Refreshing current list if tab/group orientation has changed
+chrome.tabGroups.onRemoved.addListener(refreshIds);
+chrome.tabs.onCreated.addListener(refreshIds);
+chrome.tabs.onMoved.addListener(refreshIds);
+
+//connecting tabgroup listener
 chrome.tabGroups.onCreated.addListener(tabCreated);
 
-let tabGroupIds = [];
+let tabIds = [];
 let prevIds = [];
 
 let groupIds = [];
 let prevGroups = [];
 
-console.log(tabGroupIds);
+refreshIds();
 
-function getTabGroupIds() {
+function getTabIds() {
     return new Promise((resolve, reject) => {
         chrome.tabs.query({}, tabs => {
-            tabGroupIds = tabs.map(tab => ({ id: tab.id, groupId: tab.groupId }));
-            resolve(tabGroupIds);
+            tabIds = tabs.map(tab => ({ id: tab.id, groupId: tab.groupId }));
+            resolve(tabIds);
         });
     });
 }
@@ -27,53 +34,48 @@ function getGroupIds() {
     });
 }
 
-getGroupIds().then(groupIds => {
-    console.log(groupIds);
-    prevGroups = groupIds;
-})
+function refreshIds() {
+    getGroupIds().then(groupIds => {
+        console.log(groupIds);
+        prevGroups = groupIds;
+    })
+    
+    getTabIds().then(tabIds => {
+        console.log(tabIds);
+        prevIds = tabIds;
+    })
+}
 
-getTabGroupIds().then(tabGroupIds => {
-    console.log(tabGroupIds);
-    prevIds = tabGroupIds;
-})
-
-// chrome.tabGroups.query({}, function(groups) {
-//     var groupIds = groups.map(group => group.id);
-//     console.log(groupIds);
-// });
+//main function for updating the tab groups
 
 function tabCreated(group) {
-    getTabGroupIds().then(tabGroupIds => {
-        console.log(tabGroupIds);
+    //getting current tabids
+    getTabIds().then(tabIds => {
+        console.log(tabIds);
         
-        tabGroupIds.forEach(tab => {
+        //iterating through tabs
+        tabIds.forEach(tab => {
             if (tab.groupId==group.id) {
                 console.log("Tab in group", tab.id);
-                
+                //logging new group
+
+                //iterating through array with previous group ids and comparing it to new group for that tab
                 prevIds.forEach(prevTab => {
                     if (prevTab.id==tab.id && prevTab.groupId!=group.id && prevTab.groupId!=-1) {
                         console.log("tab was in another group", group.id, prevTab.groupId);
                         
+                        //updating tab to become a subgroup if it was origionally in another tabgroup
                         prevGroups.forEach(pGroup => {
                             if (pGroup.id==prevTab.groupId) {
                                 console.log("attempted?")
                                 chrome.tabGroups.update(group.id, { title: `sub-${pGroup.title}` });
                             }
                         })
-                    } //&& tab.groupId!=null && tab.groupId!=group.id
+                    }
                 })
             }
-            // prevIds.forEach(prevTab => {
-            //     prevGroups.forEach(groupId => {
-            //         //&& prevTab.groupId==groupId
-            //         console.log("tab was in another group", groupId, prevTab.groupId)
-            //         if (prevTab.id==tab.id){
-            //             console.log("tab was in another group", groupId, prevTab.groupId)
-            //         }
-            //     });
-            // });
         })
-        prevIds = tabGroupIds;
+        prevIds = tabIds;
 
         getGroupIds().then(groupIds => {
             prevGroups = groupIds;
