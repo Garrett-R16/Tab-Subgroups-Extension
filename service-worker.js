@@ -3,7 +3,6 @@ console.log(chrome.tabGroups);
 //Refreshing current list if tab/group orientation has changed
 chrome.tabGroups.onRemoved.addListener(tabRemoved);
 
-//this isn't working!!!!!!!!!!!!!!!!!!!!!
 chrome.tabGroups.onUpdated.addListener(tabUpdated);
 
 
@@ -68,7 +67,6 @@ function getGroupObject(groupId) {
     return {};
 }
 
-//this isn't working!!!!!!!!!!!!!!!!!!!!!
 function tabUpdated(group) {
     subGroupIds.forEach(subGroup => {
         if (subGroup.subId == group.id && group.title.substring(0,3)!='sub') {
@@ -81,6 +79,11 @@ function tabUpdated(group) {
         if (subGroup.mainId == group.id) {
             subGroup.title = group.title;
             chrome.tabGroups.update(subGroup.subId, { title: `sub-${subGroup.title} ${subGroup.subTitle}` });
+        }
+        // need to incorperate more functionality, adding so it closes everything and opens it up again
+        if (subGroup.mainId == group.id && group.collapsed==true) {
+            
+            chrome.tabGroups.update(subGroup.subId, { collapsed: true });
         }
     })
 }
@@ -141,7 +144,7 @@ function tabCreated(group) {
 
 //     // for iterating through the tabs
 //     tabIds.forEach(tabObj => {
-        
+
 
 //         if (groupDoesNotExist) {
 //             // create Tab Array Object
