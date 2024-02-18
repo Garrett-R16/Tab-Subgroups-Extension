@@ -10,7 +10,8 @@
     "permissions": [
         "scripting",
         "tabGroups",
-        "tabs"
+        "tabs",
+        "storage"
     ],
     "host_permissions": [
         "http://*/*",
