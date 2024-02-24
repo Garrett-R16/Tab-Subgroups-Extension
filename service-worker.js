@@ -1,10 +1,10 @@
 // Refreshing current list if tab/group orientation has changed
 
-// chrome.tabGroups.onRemoved.addListener(tabRemoved);
 chrome.tabGroups.onUpdated.addListener(tabUpdated);
 chrome.tabGroups.onCreated.addListener(tabCreated);
 chrome.tabGroups.onRemoved.addListener(onGroupDeleted);
 
+// chrome.tabs.onUpdated.addListener(tabUpdateListener);
 chrome.tabs.onCreated.addListener(refreshIds);
 chrome.tabs.onMoved.addListener(refreshIds);
 chrome.tabs.onRemoved.addListener(refreshIds);
@@ -51,6 +51,30 @@ function refreshIds() {
     })
 }
 
+// attempted to make it so it would update on update but not working atm
+// async function tabUpdateListener(tab, changeInfo) {
+//     let groupInList = false;
+
+//     if (changeInfo.groupId && changeInfo.groupId!=-1) {
+//         groupIds.forEach(groupId => {
+//             if (changeInfo.groupId == groupId.id) groupInList = true;
+//         });
+//         console.log(groupInList);
+//         if (!groupInList) {
+//             console.log("func not doin notin");
+//             return;
+//         }
+//     }
+//     // console.log("tab Update", tab, changeInfo);
+    
+//     // console.log(changeInfo.groupId);
+//     if(changeInfo.status!='loading') {
+//         console.log("refreshing");
+//         refreshIds();
+//     }
+// }
+
+
 // typing in $b reverts the title back to the origional title
 function newTitle(count, subTitle, mainTitle) {
     if (subTitle=="$b" || subTitle=="") {
@@ -59,10 +83,8 @@ function newTitle(count, subTitle, mainTitle) {
         return `${subTitle}`;
     }
 }
+
 // function for getting the group object assosiate with x id
-
-let functionRunning = false;
-
 function tabUpdated(group) {
     console.log("TAB IS UPDATED");
 
@@ -80,7 +102,6 @@ function tabUpdated(group) {
         // if/else for closing subgroups and updating names of subgroups
         if (subGroup.subId == group.id && group.title.substring(0, subGroup.title.length)!=subGroup.title) {
             console.log("1 num", subGroup.title);
-            //subGroup.subTitle == "" ||
             subGroup.subTitle = group.title;
 
             if (group.title=="$b") {
@@ -98,7 +119,6 @@ function tabUpdated(group) {
 
         } else if (subGroup.mainId == group.id && group.collapsed && !subGroup.mainGroupClosed) {
             console.log("3", group.title);
-            //chrome.tabGroups.update(subGroup.subId, { collapsed: true });
             
             let tabUrls = []
             console.log(tabIdsList);
