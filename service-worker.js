@@ -1,179 +1,236 @@
-console.log(chrome.tabGroups);
+// Refreshing current list if tab/group orientation has changed
 
-//Refreshing current list if tab/group orientation has changed
-chrome.tabGroups.onRemoved.addListener(tabRemoved);
-
+// chrome.tabGroups.onRemoved.addListener(tabRemoved);
 chrome.tabGroups.onUpdated.addListener(tabUpdated);
-
+chrome.tabGroups.onCreated.addListener(tabCreated);
+chrome.tabGroups.onRemoved.addListener(onGroupDeleted);
 
 chrome.tabs.onCreated.addListener(refreshIds);
 chrome.tabs.onMoved.addListener(refreshIds);
+chrome.tabs.onRemoved.addListener(refreshIds);
 
-//connecting tabgroup listener
-chrome.tabGroups.onCreated.addListener(tabCreated);
-
-let tabIds = [];
+// tab arrays
+let tabIdsList = [];
 let prevIds = [];
-
+// group arrays
 let groupIds = [];
 let prevGroups = [];
-
+// subgroup array
 let subGroupIds = [];
 
 refreshIds();
 
 // functions for getting the list of open group ids and tabs
-
 function getTabIds() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         chrome.tabs.query({}, tabs => {
-            tabIds = tabs.map(tab => ({ id: tab.id, groupId: tab.groupId, url: tab.url }));
-            resolve(tabIds);
+            tabIdsList = tabs.map(tab => ({ id: tab.id, groupId: tab.groupId, url: tab.url }));
+            resolve(tabIdsList);
         });
     });
+    
 }
 
 function getGroupIds() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         chrome.tabGroups.query({}, function(groups) {
-            groupIds = groups.map(group => ({ id: group.id, title: group.title }));
+            groupIds = groups.map(group => ({ id: group.id, title: group.title, color: group.color }));
             resolve(groupIds);
         });
     });
 }
 
 //combining the functions into one
-
 function refreshIds() {
     getGroupIds().then(groupIds => {
-        console.log(groupIds);
         prevGroups = groupIds;
     })
     
-    getTabIds().then(tabIds => {
-        console.log(tabIds);
-        prevIds = tabIds;
+    getTabIds().then(tabIdsList => {
+        prevIds = tabIdsList;
     })
 }
 
+// typing in $b reverts the title back to the origional title
+function newTitle(count, subTitle, mainTitle) {
+    if (subTitle=="$b" || subTitle=="") {
+        return `${count}-${mainTitle}`;
+    } else {
+        return `${subTitle}`;
+    }
+}
 // function for getting the group object assosiate with x id
 
-function getGroupObject(groupId) {
-    groupIds.forEach(groupObj => {
-        if (groupObj.id==groupId) {
-            return groupObj;
-        }
-    })
-    return {};
-}
+let functionRunning = false;
 
 function tabUpdated(group) {
-    subGroupIds.forEach(subGroup => {
-        if (subGroup.subId == group.id && group.title.substring(0,3)!='sub') {
+    console.log("TAB IS UPDATED");
 
+    subGroupIds.forEach(subGroup => {
+        console.log(group.title.substring(0, subGroup.title.length), subGroup.title);
+
+        // ensuring colors of group are the same
+        if (subGroup.subId==group.id && group.color != subGroup.color && !subGroup.mainGroupClosed) {
+            chrome.tabGroups.update(group.id, { color: subGroup.color });
+        } else if (subGroup.mainId==group.id && group.color != subGroup.color && !subGroup.mainGroupClosed) {
+            subGroup.color = group.color;
+            chrome.tabGroups.update(subGroup.subId, { color: subGroup.color });
+        }
+
+        // if/else for closing subgroups and updating names of subgroups
+        if (subGroup.subId == group.id && group.title.substring(0, subGroup.title.length)!=subGroup.title) {
+            console.log("1 num", subGroup.title);
+            //subGroup.subTitle == "" ||
             subGroup.subTitle = group.title;
 
-            chrome.tabGroups.update(group.id, { title: `sub-${subGroup.title} ${subGroup.subTitle}` });
-            return;
-        }
-        if (subGroup.mainId == group.id) {
+            if (group.title=="$b") {
+                let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.title);
+                chrome.tabGroups.update(group.id, { title: Title });
+            }
+
+        } else if (subGroup.mainId == group.id && subGroup.title!=group.title && !subGroup.mainGroupClosed) {
+            console.log("2 num", subGroup.title, group.collapsed, subGroup.mainGroupClosed);
             subGroup.title = group.title;
-            chrome.tabGroups.update(subGroup.subId, { title: `sub-${subGroup.title} ${subGroup.subTitle}` });
-        }
-        // need to incorperate more functionality, adding so it closes everything and opens it up again
-        if (subGroup.mainId == group.id && group.collapsed==true) {
+
+            let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.title);
+
+            chrome.tabGroups.update(subGroup.subId, { title: Title });
+
+        } else if (subGroup.mainId == group.id && group.collapsed && !subGroup.mainGroupClosed) {
+            console.log("3", group.title);
+            //chrome.tabGroups.update(subGroup.subId, { collapsed: true });
             
-            chrome.tabGroups.update(subGroup.subId, { collapsed: true });
+            let tabUrls = []
+            console.log(tabIdsList);
+            getTabIds().then(async tabIdsList => {
+                await chrome.tabGroups.update(subGroup.subId, { collapsed: true });
+                tabIdsList.forEach(tabId => {
+                    if (tabId.groupId == subGroup.subId) {
+                        
+                        console.log(tabId.url, "tabUrl");
+                        tabUrls.push(tabId.url);
+                        chrome.tabs.remove(tabId.id);
+                    }
+                });
+
+                subGroup.tabs = tabUrls;
+
+                subGroup.mainGroupClosed = true;
+
+                console.log(subGroup, "SUBGROUP!!?!??!?!?!?", subGroup.mainGroupClosed);
+
+            });
+
+        } else if (subGroup.mainId == group.id && !group.collapsed && subGroup.mainGroupClosed && group.title!="") {
+            console.log("4", group.title, group.collapsed);
+            
+            console.log(subGroup, "current subgroup being created");
+
+            let totalList = [];
+
+            const createTabPromises = subGroup.tabs.map(tabUrl => {
+                return new Promise(resolve => {
+                    chrome.tabs.create({ url: tabUrl, active: false }, tab => {
+                        totalList.push(tab.id);
+                        console.log("Tab created with ID:", tab.id);
+                        resolve(tab.id);
+                    });
+                });
+            });
+            
+            Promise.all(createTabPromises).then(totalList => {
+                console.log("All tabs created:", totalList);
+                // Once all tabs are created, group them
+                chrome.tabs.group({ tabIds: totalList }, async newId => {
+                    console.log("New group ID:", newId);
+
+                    console.log(newId, "newId");
+
+                    console.log("ids changed", subGroupIds);
+                    subGroupIds.forEach(subGroup2 => {
+                        if (subGroup2.mainId == subGroup.subId) {
+                            console.log(subGroup2.mainId, "initial mainID")
+                            subGroup2.mainId = newId;
+                            console.log(subGroup2.mainId, "Changed mainID")
+                        }
+                    });
+
+                    let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.title);
+
+                    subGroup.subId = newId;
+                    console.log(subGroup.subId, "UPDATED??");
+
+                    await chrome.tabGroups.update(newId, { color: group.color, collapsed: true, title: Title });
+                });
+            });
+
+            subGroup.mainGroupClosed = false;
+        
         }
     })
 }
 
-function tabRemoved(group) {
+function onGroupDeleted(group) {
+    console.log("deleted function called");
     for(let i = 0; i < subGroupIds.length; i++) {
-        console.log(subGroupIds[i])
-        if (group.id == subGroupIds[i].subId) {
+        console.log(subGroupIds[i].mainGroupClosed);
+        if (group.id == subGroupIds[i].subId && !subGroupIds[i].mainGroupClosed) {
+            console.log(subGroupIds[i], "Subgroup Deleted", subGroupIds.length);
+            
             subGroupIds.splice(i, 1);
-            break;
+            i--;
+            console.log(subGroupIds.length);
         }
     }
     refreshIds();
 }
 
 //main function for updating the tab groups
-
 function tabCreated(group) {
     //getting current tabids
-    getTabIds().then(tabIds => {
-        console.log(tabIds);
-        
+    getTabIds().then(tabIdsList => {
         //iterating through tabs
-        tabIds.forEach(tab => {
+        tabIdsList.forEach(tab => {
             if (tab.groupId==group.id) {
-                console.log("Tab in group", tab.id);
-                //logging new group
-                
+                // checking if a subgroup with that group.id already exists
+                let SubGroupExists = false;
+
+                subGroupIds.forEach(subGroup => {
+                    console.log(group.id, subGroup.subId);
+                    if (subGroup.subId==group.id) {
+                        SubGroupExists = true;
+                        return;
+                    }
+                });
+
                 //iterating through array with previous group ids and comparing it to new group for that tab
                 prevIds.forEach(prevTab => {
-                    if (prevTab.id==tab.id && prevTab.groupId!=group.id && prevTab.groupId!=-1) {
+                    if (prevTab.id==tab.id && prevTab.groupId!=group.id && prevTab.groupId!=-1 && !SubGroupExists) {
                         console.log("tab was in another group", group.id, prevTab.groupId);
                         
                         //updating tab to become a subgroup if it was origionally in another tabgroup
                         prevGroups.forEach(pGroup => {
                             if (pGroup.id==prevTab.groupId) {
-                                console.log("attempted?")
-
-                                subGroupIds.push({ mainId: pGroup.id, subId: group.id, title: pGroup.title, subTitle: ""});
-
-                                chrome.tabGroups.update(group.id, { title: `sub-${pGroup.title}` });
+                                
+                                let count = 1;
+                                subGroupIds.forEach(subGroup => {
+                                    if (subGroup.mainId == pGroup.id) {
+                                        count++;
+                                    }
+                                })
+                                
+                                subGroupIds.push({ mainId: pGroup.id, subId: group.id, title: pGroup.title, subTitle: "", count: count, tabs: [], mainGroupClosed: false, color: pGroup.color });
+                                chrome.tabGroups.update(group.id, { title: `${pGroup.title}-${count}`, color: pGroup.color });
                             }
                         })
                     }
                 })
             }
         })
-        prevIds = tabIds;
+        prevIds = tabIdsList;
 
         getGroupIds().then(groupIds => {
             prevGroups = groupIds;
-            console.log(prevGroups)
         })
     });
 }
-
-// function constructTabArrays() {
-
-//     // for iterating through the tabs
-//     tabIds.forEach(tabObj => {
-
-
-//         if (groupDoesNotExist) {
-//             // create Tab Array Object
-//             addObject(getGroupObject(tabObj.groupId));
-//         }
-//         if (tabObj.groupId==current) {
-//             // if object with that group id exists?
-//             addObject(tabObj);
-//         }
-//         else if (tabObj.groupId!=null) {
-//             //
-//             tabObj.groupId = new tabArray;
-//         }
-//     })
-
-//     if (groupId) {
-//         addObject({})
-//     }
-// }
-
-// //class for creating instances of tab arrays
-
-// class tabArrays {
-
-//     tabArray = []
-
-//     addObject(tabObject) {
-//         this.tabArray.push(tabObject)
-//     }
-// }
-
-//[ {Groupid: 1231231312, groupName: "whatever"}, {tabName: "soemthing", url: "soemthing", id: ""}, {groupName: "whatever", id: 321321123, tabGroups: [{tabname: "whatever"}, {tabName: "son"}]}]
