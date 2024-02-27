@@ -4,7 +4,7 @@ chrome.tabGroups.onUpdated.addListener(tabUpdated);
 chrome.tabGroups.onCreated.addListener(tabCreated);
 chrome.tabGroups.onRemoved.addListener(onGroupDeleted);
 
-// chrome.tabs.onUpdated.addListener(tabUpdateListener);
+chrome.tabs.onUpdated.addListener(tabUpdateListener);
 chrome.tabs.onCreated.addListener(refreshIds);
 chrome.tabs.onMoved.addListener(refreshIds);
 chrome.tabs.onRemoved.addListener(refreshIds);
@@ -51,29 +51,22 @@ function refreshIds() {
     })
 }
 
-// attempted to make it so it would update on update but not working atm
-// async function tabUpdateListener(tab, changeInfo) {
-//     let groupInList = false;
-
-//     if (changeInfo.groupId && changeInfo.groupId!=-1) {
-//         groupIds.forEach(groupId => {
-//             if (changeInfo.groupId == groupId.id) groupInList = true;
-//         });
-//         console.log(groupInList);
-//         if (!groupInList) {
-//             console.log("func not doin notin");
-//             return;
-//         }
-//     }
-//     // console.log("tab Update", tab, changeInfo);
-    
-//     // console.log(changeInfo.groupId);
-//     if(changeInfo.status!='loading') {
-//         console.log("refreshing");
-//         refreshIds();
-//     }
-// }
-
+function tabUpdateListener(tab, changeInfo) {
+    console.log("tab is updated", tab, changeInfo);
+    let groupInList = false;
+    if (changeInfo.groupId == -1) return;
+    if (changeInfo.groupId) {
+        groupIds.forEach(groupId => {
+            if (changeInfo.groupId == groupId.id) groupInList = true;
+        });
+        console.log(groupInList);
+        if (!groupInList) {
+            console.log("func not doin notin");
+            return;
+        }
+    }
+    refreshIds();
+}
 
 // typing in $b reverts the title back to the origional title
 function newTitle(count, subTitle, mainTitle) {
