@@ -24,7 +24,7 @@ refreshIds();
 function getTabIds() {
     return new Promise((resolve) => {
         chrome.tabs.query({}, tabs => {
-            tabIdsList = tabs.map(tab => ({ id: tab.id, groupId: tab.groupId, url: tab.url }));
+            tabIdsList = tabs.map(tab => ({ id: tab.id, groupId: tab.groupId, url: tab.url}));
             resolve(tabIdsList);
         });
     });
@@ -172,8 +172,16 @@ function tabUpdated(group) {
 
                     subGroup.subId = newId;
                     console.log(subGroup.subId, "UPDATED??");
+                    let newIndex;
+                    for (let i = 0; i < tabIdsList.length; i++) {
+                        if (tabIdsList[i].groupId==subGroup.mainId && tabIdsList[i+1].groupId!=subGroup.mainId) {
+                            newIndex = i+1;
+                            break;
+                        }
+                    }
 
                     await chrome.tabGroups.update(newId, { color: group.color, collapsed: true, title: Title });
+                    await chrome.tabGroups.move(newId, { index: newIndex })
                 });
             });
 
