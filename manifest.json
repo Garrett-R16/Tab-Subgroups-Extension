@@ -1,5 +1,5 @@
 {
-    "name": "Sub Grouping",
+    "name": "Sub Groups",
     "manifest_version": 3,
     "version": "1.0.0",
     "icons": {
@@ -7,19 +7,14 @@
         "48": "icon_48.png",
         "128": "icon_128.png"
     },
-    "description": "Create, delete, and customize tab sub-groups to better organize and clean your browser experience.",
+    "description": "Create, organize, and customize tab sub-groups to better organize and clean your browser experience.",
     "background": {
         "service_worker": "service-worker.js",
         "type": "module"
     },
     "permissions": [
-        "scripting",
         "tabGroups",
         "tabs",
         "storage"
-    ],
-    "host_permissions": [
-        "http://*/*",
-        "https://*/*"
     ]
 }
