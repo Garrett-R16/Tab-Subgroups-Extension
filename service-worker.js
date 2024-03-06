@@ -22,21 +22,17 @@ getGroupIds().then(groupIds => {
     chrome.storage.sync.get(["groups"], (result) => {
         if (result.groups) {
             if (groupIds.length!=result.groups.length) {
-                console.log("groups are not same length");
                 return;
             } else {
                 for (let i = 0; i<groupIds.length; i++) {
                     if (groupIds[i].id!=result.groups[i].id) {
-                        console.log("not same value");
                         return;
                     }
                 }
                 chrome.storage.sync.get(["subGroupArray"], (result) => {
                     if (result.subGroupArray) {
                         subGroupIds = result.subGroupArray;
-                        console.log("subGroupArray is Set");
                     } else {
-                        console.log("subgroup array is not defined");
                     }
                 });
             }
@@ -51,9 +47,7 @@ getTabIds().then(tabIdsList => {
 getGroupIds().then(groupIds => {
     prevGroups = groupIds;
 
-    chrome.storage.sync.set({ groups: groupIds }, () => {
-        console.log("Group value was set");
-    });
+    chrome.storage.sync.set({ groups: groupIds });
 });
 
 // functions for getting the list of open group ids and tabs
@@ -88,7 +82,6 @@ function refreshIds() {
 }
 
 function tabUpdateListener(tab, changeInfo) {
-    console.log("tab is updated");
     let groupInList = false;
     if (changeInfo.groupId == -1) return;
     if (changeInfo.groupId) {
@@ -114,7 +107,6 @@ function newTitle(count, subTitle, mainTitle) {
 
 // function for getting the group object assosiate with x id
 function groupUpdated(group) {
-    console.log("Group is updated");
 
     subGroupIds.forEach(subGroup => {
         // ensuring colors of group are the same
@@ -141,8 +133,6 @@ function groupUpdated(group) {
 
         } else if (subGroup.mainId == group.id && subGroup.title!=group.title) {
             subGroup.title = group.title;
-            console.log("maingroup title changed", group.title);
-            console.log("subtitle", subGroup.subTitle)
 
             if (!subGroup.mainGroupClosed) {
                 let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.title);
@@ -184,7 +174,6 @@ function groupUpdated(group) {
             });
             
             Promise.all(createTabPromises).then(totalList => {
-                console.log("All tabs created");
                 // Once all tabs are created, group them
                 chrome.tabs.group({ tabIds: totalList }, async newId => {
 
@@ -222,10 +211,8 @@ function groupUpdated(group) {
 }
 
 function onGroupDeleted(group) {
-    console.log("deleted function called");
     for(let i = 0; i < subGroupIds.length; i++) {
         if (group.id == subGroupIds[i].subId && !subGroupIds[i].mainGroupClosed) {
-            console.log("Subgroup Deleted");
             
             subGroupIds.splice(i, 1);
             i--;
@@ -238,9 +225,7 @@ function onGroupDeleted(group) {
     getGroupIds().then(groupIds => {
         prevGroups = groupIds;
 
-        chrome.storage.sync.set({ groups: groupIds }, () => {
-            console.log("Group value was set");
-        });
+        chrome.storage.sync.set({ groups: groupIds });
     });
 }
 
@@ -264,7 +249,6 @@ function tabCreated(group) {
                 //iterating through array with previous group ids and comparing it to new group for that tab
                 prevIds.forEach(prevTab => {
                     if (prevTab.id==tab.id && prevTab.groupId!=group.id && prevTab.groupId!=-1 && !SubGroupExists) {
-                        console.log("tab was in another group");
                         
                         //updating tab to become a subgroup if it was origionally in another tabgroup
                         prevGroups.forEach(pGroup => {
@@ -292,16 +276,12 @@ function tabCreated(group) {
         getGroupIds().then(groupIds => {
             prevGroups = groupIds;
             
-            chrome.storage.sync.set({ groups: groupIds }, () => {
-                console.log("Group value was set");
-            });
+            chrome.storage.sync.set({ groups: groupIds });
         });
     });
 }
 
 // function for updating subgroup storage
 function refreshSubStorage() {
-    chrome.storage.sync.set({ subGroupArray: subGroupIds }, () => {
-        console.log("SubStorage was refreshed")
-    });
+    chrome.storage.sync.set({ subGroupArray: subGroupIds });
 }
