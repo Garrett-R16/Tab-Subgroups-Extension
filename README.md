@@ -24,5 +24,5 @@ If you happen to have any questions or concerns, feel free to [send me an email]
 
 ***
 
-####
+#### Note
 By major, I mean that users will not be notified for changes to fix grammar, typos, or other errors of a similar magnitude.
