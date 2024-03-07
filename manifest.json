@@ -1,5 +1,5 @@
 {
-    "name": "Sub Groups",
+    "name": "MoreGroups - subgroup your tabs",
     "manifest_version": 3,
     "version": "1.0.0",
     "icons": {
@@ -7,7 +7,7 @@
         "48": "icon_48.png",
         "128": "icon_128.png"
     },
-    "description": "Create, organize, and customize tab sub-groups to better optimize your browser experience.",
+    "description": "Create, organize, and customize tab subgroups to better optimize your browser experience.",
     "background": {
         "service_worker": "service-worker.js",
         "type": "module"
