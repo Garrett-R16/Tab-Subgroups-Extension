@@ -22,5 +22,7 @@ If there are any major changes made to this privacy policy, I will push a new ve
 
 If you happen to have any questions or concerns, feel free to [send me an email](mailto:garrettrussell111@gmail.com) or create an issue in this repository.
 
+***
+
 ####
 By major, I mean that users will not be notified for changes to fix grammar, typos, or other errors of a similar magnitude.
