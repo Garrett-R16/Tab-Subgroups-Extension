@@ -19,7 +19,7 @@ let subGroupIds = [];
 
 // Initial function for checking if groups array exists in storage, and if the groups array aligns with the current groups open, setting the subgroup array equal to the subgroup array in storage
 getGroupIds().then(groupIds => {
-    chrome.storage.sync.get(["groups"], (result) => {
+    chrome.storage.local.get(["groups"], (result) => {
         if (result.groups) {
             if (groupIds.length!=result.groups.length) {
                 return;
@@ -29,7 +29,7 @@ getGroupIds().then(groupIds => {
                         return;
                     }
                 }
-                chrome.storage.sync.get(["subGroupArray"], (result) => {
+                chrome.storage.local.get(["subGroupArray"], (result) => {
                     if (result.subGroupArray) {
                         subGroupIds = result.subGroupArray;
                     } else {
@@ -47,7 +47,7 @@ getTabIds().then(tabIdsList => {
 getGroupIds().then(groupIds => {
     prevGroups = groupIds;
 
-    chrome.storage.sync.set({ groups: groupIds });
+    chrome.storage.local.set({ groups: groupIds });
 });
 
 // functions for getting the list of open group ids and tabs
@@ -225,7 +225,7 @@ function onGroupDeleted(group) {
     getGroupIds().then(groupIds => {
         prevGroups = groupIds;
 
-        chrome.storage.sync.set({ groups: groupIds });
+        chrome.storage.local.set({ groups: groupIds });
     });
 }
 
@@ -276,12 +276,12 @@ function tabCreated(group) {
         getGroupIds().then(groupIds => {
             prevGroups = groupIds;
             
-            chrome.storage.sync.set({ groups: groupIds });
+            chrome.storage.local.set({ groups: groupIds });
         });
     });
 }
 
 // function for updating subgroup storage
 function refreshSubStorage() {
-    chrome.storage.sync.set({ subGroupArray: subGroupIds });
+    chrome.storage.local.set({ subGroupArray: subGroupIds });
 }
