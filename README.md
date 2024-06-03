@@ -1,6 +1,6 @@
 Repository for a Chrome extension that allows users to make nested tab groups (i.e., subgroups, sub-subgroups, and so on).
 
-[You can download the MoreGroups extension from the Chrome web store](https://chromewebstore.google.com/detail/moregroups-subgroup-your/djbmocfpfgbhcglagcibhagfnehcbkfc)
+To try this extension yourself, click [here](https://chromewebstore.google.com/detail/moregroups-subgroup-your/djbmocfpfgbhcglagcibhagfnehcbkfc)
 
 # Privacy Policy
 
