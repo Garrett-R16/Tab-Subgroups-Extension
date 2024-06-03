@@ -1,4 +1,4 @@
-Repository for a Chrome extension that allows users to make nested tab groups (i.e., subgroups, sub-subgroups, and so on).
+This is a repository for a Chrome extension that allows users to make nested tab groups (i.e., subgroups, sub-subgroups, and so on). I began developing this extension while working on a research project, as I wanted to find a better way to organize and categorize the research papers I was reading without needing to repeatedly close and reopen tabs. To learn more about how to use it, please use the link below.
 
 To try this extension yourself, click [here](https://chromewebstore.google.com/detail/moregroups-subgroup-your/djbmocfpfgbhcglagcibhagfnehcbkfc)
 
