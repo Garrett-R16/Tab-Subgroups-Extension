@@ -234,13 +234,7 @@ function groupUpdated(group) {
 }
 
 function onGroupDeleted(group) {
-    for(let i = 0; i < subGroupArray.length; i++) {
-        if (group.id == subGroupArray[i].childId && !subGroupArray[i].isCollapsed) {
-            
-            subGroupArray.splice(i, 1);
-            i--;
-        }
-    }
+    subGroupArray = subGroupArray.filter(s => s.childId !== group.id && s.parentId !== group.id);
     saveStorage();
     getTabIds().then(tabIdsList => {
         prevIds = tabIdsList;
