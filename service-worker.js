@@ -22,12 +22,16 @@ function saveStorage() {
 }
 
 async function getRootColor(groupId) {
-    const subgroup = subGroupArray.find(s => s.childId === groupId);
-    if (subgroup) {
-        return await getRootColor(subgroup.parentId);
+    try {
+        const subgroup = subGroupArray.find(s => s.childId === groupId);
+        if (subgroup) {
+            return await getRootColor(subgroup.parentId);
+        }
+        const group = await chrome.tabGroups.get(groupId);
+        return group.color;
+    } catch (e) {
+        return "grey";
     }
-    const group = await chrome.tabGroups.get(groupId);
-    return group.color;
 }
 
 // Refreshing current list if tab/group orientation has changed
