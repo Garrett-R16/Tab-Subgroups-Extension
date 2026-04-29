@@ -6,6 +6,7 @@
  * @property {number} count - Index for naming (e.g., 1 for "Parent-1")
  * @property {boolean} isCollapsed - Tracks if child tabs are saved
  * @property {string} color - Inherited color from root parent
+ * @property {string} subTitle - Custom sub-title for the group
  * @property {Array<{url: string, title: string, pinned: boolean}>} savedTabs - Tabs removed when parent collapsed
  */
 
