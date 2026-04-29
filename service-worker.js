@@ -262,26 +262,30 @@ async function tabCreated(group) {
     }
 
     if (parentGroupId !== -1) {
-        const parentGroup = await chrome.tabGroups.get(parentGroupId);
-        const rootColor = await getRootColor(parentGroupId);
-        const count = subGroupArray.filter(s => s.parentId === parentGroupId).length + 1;
-        
-        subGroupArray.push({
-            parentId: parentGroupId,
-            childId: group.id,
-            name: parentGroup.title,
-            count: count,
-            isCollapsed: false,
-            color: rootColor,
-            savedTabs: [],
-            subTitle: "" // Ensure subTitle is initialized
-        });
+        try {
+            const parentGroup = await chrome.tabGroups.get(parentGroupId);
+            const rootColor = await getRootColor(parentGroupId);
+            const count = subGroupArray.filter(s => s.parentId === parentGroupId).length + 1;
+            
+            subGroupArray.push({
+                parentId: parentGroupId,
+                childId: group.id,
+                name: parentGroup.title,
+                count: count,
+                isCollapsed: false,
+                color: rootColor,
+                savedTabs: [],
+                subTitle: "" // Ensure subTitle is initialized
+            });
 
-        await chrome.tabGroups.update(group.id, { 
-            title: `${parentGroup.title}-${count}`,
-            color: rootColor
-        });
-        saveStorage();
+            await chrome.tabGroups.update(group.id, { 
+                title: `${parentGroup.title}-${count}`,
+                color: rootColor
+            });
+            saveStorage();
+        } catch (e) {
+            console.error("Error creating subgroup:", e);
+        }
     }
     refreshIds();
 }
