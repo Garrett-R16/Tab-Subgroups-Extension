@@ -1,0 +1,12 @@
+{
+  "name": "tab-subgroups-extension",
+  "version": "1.0.0",
+  "description": "E2E tests for Tab Subgroups",
+  "devDependencies": {
+    "@playwright/test": "^1.42.0",
+    "typescript": "^5.3.3"
+  },
+  "scripts": {
+    "test": "playwright test"
+  }
+}
