@@ -1,3 +1,34 @@
+/**
+ * @typedef {Object} Subgroup
+ * @property {number} parentId - Chrome ID of the parent group
+ * @property {number} childId - Chrome ID of the child group
+ * @property {string} name - Base name (e.g., "Parent")
+ * @property {number} count - Index for naming (e.g., 1 for "Parent-1")
+ * @property {boolean} isCollapsed - Tracks if child tabs are saved
+ * @property {string} color - Inherited color from root parent
+ * @property {Array<{url: string, title: string, pinned: boolean}>} savedTabs - Tabs removed when parent collapsed
+ */
+
+let subGroupArray = []; // Using local variable for speed, sync with storage
+
+async function loadStorage() {
+    const result = await chrome.storage.local.get(["subGroupArray"]);
+    subGroupArray = result.subGroupArray || [];
+}
+
+function saveStorage() {
+    chrome.storage.local.set({ subGroupArray });
+}
+
+async function getRootColor(groupId) {
+    const subgroup = subGroupArray.find(s => s.childId === groupId);
+    if (subgroup) {
+        return await getRootColor(subgroup.parentId);
+    }
+    const group = await chrome.tabGroups.get(groupId);
+    return group.color;
+}
+
 // Refreshing current list if tab/group orientation has changed
 chrome.tabGroups.onUpdated.addListener(groupUpdated);
 chrome.tabGroups.onCreated.addListener(tabCreated);
@@ -14,31 +45,9 @@ let prevIds = [];
 // group arrays
 let groupIds = [];
 let prevGroups = [];
-// subgroup array
-let subGroupIds = [];
 
-// Initial function for checking if groups array exists in storage, and if the groups array aligns with the current groups open, setting the subgroup array equal to the subgroup array in storage
-getGroupIds().then(groupIds => {
-    chrome.storage.local.get(["groups"], (result) => {
-        if (result.groups) {
-            if (groupIds.length!=result.groups.length) {
-                return;
-            } else {
-                for (let i = 0; i<groupIds.length; i++) {
-                    if (groupIds[i].id!=result.groups[i].id) {
-                        return;
-                    }
-                }
-                chrome.storage.local.get(["subGroupArray"], (result) => {
-                    if (result.subGroupArray) {
-                        subGroupIds = result.subGroupArray;
-                    } else {
-                    }
-                });
-            }
-        }
-    });
-})
+// Initialize storage
+loadStorage();
 
 // Initially getting ids
 getTabIds().then(tabIdsList => {
@@ -54,7 +63,13 @@ getGroupIds().then(groupIds => {
 function getTabIds() {
     return new Promise((resolve) => {
         chrome.tabs.query({}, tabs => {
-            tabIdsList = tabs.map(tab => ({ id: tab.id, groupId: tab.groupId, url: tab.url}));
+            tabIdsList = tabs.map(tab => ({ 
+                id: tab.id, 
+                groupId: tab.groupId, 
+                url: tab.url,
+                title: tab.title,
+                pinned: tab.pinned
+            }));
             resolve(tabIdsList);
         });
     });
@@ -108,67 +123,70 @@ function newTitle(count, subTitle, mainTitle) {
 // function for getting the group object assosiate with x id
 function groupUpdated(group) {
 
-    subGroupIds.forEach(subGroup => {
+    subGroupArray.forEach(subGroup => {
         // ensuring colors of group are the same
-        if (subGroup.subId==group.id && group.color != subGroup.color && !subGroup.mainGroupClosed) {
+        if (subGroup.childId==group.id && group.color != subGroup.color && !subGroup.isCollapsed) {
             chrome.tabGroups.update(group.id, { color: subGroup.color });
-        } else if (subGroup.mainId==group.id && group.color != subGroup.color && !subGroup.mainGroupClosed) {
+        } else if (subGroup.parentId==group.id && group.color != subGroup.color && !subGroup.isCollapsed) {
             subGroup.color = group.color;
-            chrome.tabGroups.update(subGroup.subId, { color: subGroup.color });
+            chrome.tabGroups.update(subGroup.childId, { color: subGroup.color });
         }
 
         // if/else for closing subgroups and updating names of subgroups
-        if (subGroup.subId == group.id && group.title.substring(0, subGroup.title.length)!=subGroup.title) {
-            let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.title);
+        if (subGroup.childId == group.id && group.title.substring(0, subGroup.name.length)!=subGroup.name) {
+            let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.name);
             if (Title != group.title) {
                 subGroup.subTitle = group.title;
             }
             
             if (group.title=="$b") {
                 subGroup.subTitle = "";
-                let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.title);
+                let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.name);
                 chrome.tabGroups.update(group.id, { title: Title });
             }
-            refreshSubStorage();
+            saveStorage();
 
-        } else if (subGroup.mainId == group.id && subGroup.title!=group.title) {
-            subGroup.title = group.title;
+        } else if (subGroup.parentId == group.id && subGroup.name!=group.title) {
+            subGroup.name = group.title;
 
-            if (!subGroup.mainGroupClosed) {
-                let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.title);
+            if (!subGroup.isCollapsed) {
+                let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.name);
 
-                chrome.tabGroups.update(subGroup.subId, { title: Title });
-                refreshSubStorage();
+                chrome.tabGroups.update(subGroup.childId, { title: Title });
+                saveStorage();
             }
 
-        } else if (subGroup.mainId == group.id && group.collapsed && !subGroup.mainGroupClosed) {
+        } else if (subGroup.parentId == group.id && group.collapsed && !subGroup.isCollapsed) {
             
-            let tabUrls = []
+            let tabData = []
             getTabIds().then(async tabIdsList => {
-                await chrome.tabGroups.update(subGroup.subId, { collapsed: true });
-                tabIdsList.forEach(tabId => {
-                    if (tabId.groupId == subGroup.subId) {
-                        
-                        tabUrls.push(tabId.url);
-                        chrome.tabs.remove(tabId.id);
+                await chrome.tabGroups.update(subGroup.childId, { collapsed: true });
+                tabIdsList.forEach(tab => {
+                    if (tab.groupId == subGroup.childId) {
+                        tabData.push({
+                            url: tab.url,
+                            title: tab.title,
+                            pinned: tab.pinned
+                        });
+                        chrome.tabs.remove(tab.id);
                     }
                 });
 
-                subGroup.tabs = tabUrls;
-                subGroup.mainGroupClosed = true;
+                subGroup.savedTabs = tabData;
+                subGroup.isCollapsed = true;
 
-                refreshSubStorage();
+                saveStorage();
             });
 
-        } else if (subGroup.mainId == group.id && !group.collapsed && subGroup.mainGroupClosed && group.title!="") {
+        } else if (subGroup.parentId == group.id && !group.collapsed && subGroup.isCollapsed && group.title!="") {
 
             let totalList = [];
 
-            const createTabPromises = subGroup.tabs.map(tabUrl => {
+            const createTabPromises = subGroup.savedTabs.map(tab => {
                 return new Promise(resolve => {
-                    chrome.tabs.create({ url: tabUrl, active: false }, tab => {
-                        totalList.push(tab.id);
-                        resolve(tab.id);
+                    chrome.tabs.create({ url: tab.url, pinned: tab.pinned, active: false }, newTab => {
+                        totalList.push(newTab.id);
+                        resolve(newTab.id);
                     });
                 });
             });
@@ -177,19 +195,19 @@ function groupUpdated(group) {
                 // Once all tabs are created, group them
                 chrome.tabs.group({ tabIds: totalList }, async newId => {
 
-                    subGroupIds.forEach(subGroup2 => {
-                        if (subGroup2.mainId == subGroup.subId) {
-                            subGroup2.mainId = newId;
+                    subGroupArray.forEach(subGroup2 => {
+                        if (subGroup2.parentId == subGroup.childId) {
+                            subGroup2.parentId = newId;
                         }
                     });
 
-                    let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.title);
+                    let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.name);
 
-                    subGroup.subId = newId;
+                    subGroup.childId = newId;
 
                     let newIndex;
                     for (let i = 0; i < tabIdsList.length; i++) {
-                        if (tabIdsList[i].groupId==subGroup.mainId && tabIdsList[i+1].groupId!=subGroup.mainId) {
+                        if (tabIdsList[i].groupId==subGroup.parentId && tabIdsList[i+1].groupId!=subGroup.parentId) {
                             newIndex = i+1;
                             break;
                         }
@@ -198,9 +216,9 @@ function groupUpdated(group) {
                     await chrome.tabGroups.update(newId, { color: group.color, collapsed: true, title: Title });
                     await chrome.tabGroups.move(newId, { index: newIndex })
 
-                    subGroup.mainGroupClosed = false;
+                    subGroup.isCollapsed = false;
                     
-                    refreshSubStorage();
+                    saveStorage();
                     
                 });
             });
@@ -211,14 +229,14 @@ function groupUpdated(group) {
 }
 
 function onGroupDeleted(group) {
-    for(let i = 0; i < subGroupIds.length; i++) {
-        if (group.id == subGroupIds[i].subId && !subGroupIds[i].mainGroupClosed) {
+    for(let i = 0; i < subGroupArray.length; i++) {
+        if (group.id == subGroupArray[i].childId && !subGroupArray[i].isCollapsed) {
             
-            subGroupIds.splice(i, 1);
+            subGroupArray.splice(i, 1);
             i--;
         }
     }
-    refreshSubStorage();
+    saveStorage();
     getTabIds().then(tabIdsList => {
         prevIds = tabIdsList;
     });
@@ -239,8 +257,8 @@ function tabCreated(group) {
                 // checking if a subgroup with that group.id already exists
                 let SubGroupExists = false;
 
-                subGroupIds.forEach(subGroup => {
-                    if (subGroup.subId==group.id) {
+                subGroupArray.forEach(subGroup => {
+                    if (subGroup.childId==group.id) {
                         SubGroupExists = true;
                         return;
                     }
@@ -255,16 +273,16 @@ function tabCreated(group) {
                             if (pGroup.id==prevTab.groupId) {
                                 
                                 let count = 1;
-                                subGroupIds.forEach(subGroup => {
-                                    if (subGroup.mainId == pGroup.id) {
+                                subGroupArray.forEach(subGroup => {
+                                    if (subGroup.parentId == pGroup.id) {
                                         count++;
                                     }
                                 });
                                 
-                                subGroupIds.push({ mainId: pGroup.id, subId: group.id, title: pGroup.title, subTitle: "", count: count, tabs: [], mainGroupClosed: false, color: pGroup.color });
+                                subGroupArray.push({ parentId: pGroup.id, childId: group.id, name: pGroup.title, subTitle: "", count: count, savedTabs: [], isCollapsed: false, color: pGroup.color });
                                 chrome.tabGroups.update(group.id, { title: `${pGroup.title}-${count}`, color: pGroup.color });
 
-                                refreshSubStorage();
+                                saveStorage();
                             }
                         });
                     }
@@ -279,9 +297,4 @@ function tabCreated(group) {
             chrome.storage.local.set({ groups: groupIds });
         });
     });
-}
-
-// function for updating subgroup storage
-function refreshSubStorage() {
-    chrome.storage.local.set({ subGroupArray: subGroupIds });
 }
