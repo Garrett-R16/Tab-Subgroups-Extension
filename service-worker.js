@@ -248,53 +248,41 @@ function onGroupDeleted(group) {
 }
 
 //main function for updating the tab groups
-function tabCreated(group) {
-    //getting current tabids
-    getTabIds().then(tabIdsList => {
-        //iterating through tabs
-        tabIdsList.forEach(tab => {
-            if (tab.groupId==group.id) {
-                // checking if a subgroup with that group.id already exists
-                let SubGroupExists = false;
+async function tabCreated(group) {
+    const tabs = await chrome.tabs.query({ groupId: group.id });
+    if (tabs.length === 0) return;
 
-                subGroupArray.forEach(subGroup => {
-                    if (subGroup.childId==group.id) {
-                        SubGroupExists = true;
-                        return;
-                    }
-                });
+    // Find the first tab (left-to-right) that belonged to a group
+    let parentGroupId = -1;
+    for (const tab of tabs) {
+        const prevTab = prevIds.find(t => t.id === tab.id);
+        if (prevTab && prevTab.groupId !== -1 && prevTab.groupId !== group.id) {
+            parentGroupId = prevTab.groupId;
+            break;
+        }
+    }
 
-                //iterating through array with previous group ids and comparing it to new group for that tab
-                prevIds.forEach(prevTab => {
-                    if (prevTab.id==tab.id && prevTab.groupId!=group.id && prevTab.groupId!=-1 && !SubGroupExists) {
-                        
-                        //updating tab to become a subgroup if it was origionally in another tabgroup
-                        prevGroups.forEach(pGroup => {
-                            if (pGroup.id==prevTab.groupId) {
-                                
-                                let count = 1;
-                                subGroupArray.forEach(subGroup => {
-                                    if (subGroup.parentId == pGroup.id) {
-                                        count++;
-                                    }
-                                });
-                                
-                                subGroupArray.push({ parentId: pGroup.id, childId: group.id, name: pGroup.title, subTitle: "", count: count, savedTabs: [], isCollapsed: false, color: pGroup.color });
-                                chrome.tabGroups.update(group.id, { title: `${pGroup.title}-${count}`, color: pGroup.color });
-
-                                saveStorage();
-                            }
-                        });
-                    }
-                });
-            }
+    if (parentGroupId !== -1) {
+        const parentGroup = await chrome.tabGroups.get(parentGroupId);
+        const rootColor = await getRootColor(parentGroupId);
+        const count = subGroupArray.filter(s => s.parentId === parentGroupId).length + 1;
+        
+        subGroupArray.push({
+            parentId: parentGroupId,
+            childId: group.id,
+            name: parentGroup.title,
+            count: count,
+            isCollapsed: false,
+            color: rootColor,
+            savedTabs: [],
+            subTitle: "" // Ensure subTitle is initialized
         });
-        prevIds = tabIdsList;
 
-        getGroupIds().then(groupIds => {
-            prevGroups = groupIds;
-            
-            chrome.storage.local.set({ groups: groupIds });
+        await chrome.tabGroups.update(group.id, { 
+            title: `${parentGroup.title}-${count}`,
+            color: rootColor
         });
-    });
+        saveStorage();
+    }
+    refreshIds();
 }
