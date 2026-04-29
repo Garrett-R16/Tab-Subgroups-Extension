@@ -125,8 +125,35 @@ function newTitle(count, subTitle, mainTitle) {
     }
 }
 
+async function recursiveCollapse(groupId) {
+    const children = subGroupArray.filter(s => s.parentId === groupId);
+    for (const child of children) {
+        if (!child.isCollapsed) {
+            const tabs = await chrome.tabs.query({ groupId: child.childId });
+            child.savedTabs = tabs.map(t => ({ url: t.url, title: t.title, pinned: t.pinned }));
+            child.isCollapsed = true;
+            
+            // Recursively collapse children of this child
+            await recursiveCollapse(child.childId);
+            
+            // Remove tabs from browser
+            for (const tab of tabs) {
+                try {
+                    await chrome.tabs.remove(tab.id);
+                } catch (e) {
+                    console.error("Failed to remove tab", tab.id, e);
+                }
+            }
+        }
+    }
+    saveStorage();
+}
+
 // function for getting the group object assosiate with x id
-function groupUpdated(group) {
+async function groupUpdated(group) {
+    if (group.collapsed) {
+        await recursiveCollapse(group.id);
+    }
 
     subGroupArray.forEach(subGroup => {
         // ensuring colors of group are the same
@@ -160,28 +187,6 @@ function groupUpdated(group) {
                 chrome.tabGroups.update(subGroup.childId, { title: Title });
                 saveStorage();
             }
-
-        } else if (subGroup.parentId == group.id && group.collapsed && !subGroup.isCollapsed) {
-            
-            let tabData = []
-            getTabIds().then(async tabIdsList => {
-                await chrome.tabGroups.update(subGroup.childId, { collapsed: true });
-                tabIdsList.forEach(tab => {
-                    if (tab.groupId == subGroup.childId) {
-                        tabData.push({
-                            url: tab.url,
-                            title: tab.title,
-                            pinned: tab.pinned
-                        });
-                        chrome.tabs.remove(tab.id);
-                    }
-                });
-
-                subGroup.savedTabs = tabData;
-                subGroup.isCollapsed = true;
-
-                saveStorage();
-            });
 
         } else if (subGroup.parentId == group.id && !group.collapsed && subGroup.isCollapsed && group.title!="") {
 
