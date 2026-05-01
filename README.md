@@ -1,8 +1,40 @@
-This is a repository for a Chrome extension that allows users to make nested tab groups (i.e., subgroups, sub-subgroups, and so on). I began developing this extension while working on a research project, as I wanted to find a better way to organize and categorize the research papers I was reading without needing to repeatedly close and reopen tabs. To learn more about how to use it, please use the link below.
+# Tab Subgroups Extension
 
-To try this extension yourself, click [here](https://chromewebstore.google.com/detail/moregroups-subgroup-your/djbmocfpfgbhcglagcibhagfnehcbkfc)
+Organize your browser by nesting tab groups inside each other. Create powerful hierarchies to keep your workspace clean and navigable. To try this extension yourself, click [here](https://chromewebstore.google.com/detail/moregroups-subgroup-your/djbmocfpfgbhcglagcibhagfnehcbkfc)
 
-# Privacy Policy
+## Features
+
+- **Nested Grouping:** Create subgroups by moving tabs from one group into another.
+- **Recursive Collapse:** When you collapse a parent group, all its child subgroups are automatically saved and removed from the browser to save space.
+- **Recursive Expand:** When you un-collapse a parent, its direct children are restored in a neat, collapsed state.
+- **Color Inheritance:** Subgroups automatically match the color of their highest-level ancestor ("root parent").
+- **Smart Priority:** When creating a group from multiple tabs, the leftmost tab that already belongs to a group determines the parent.
+- **Naming Control:**
+  - Subgroups are automatically named `Parent-N`.
+  - Rename a subgroup normally, and the extension will remember it.
+  - Type `$b` as a title to revert the name back to the automatic `Parent-N` format.
+
+## How to Use
+
+1.  **Create a Parent Group:** Right-click a tab and select "Add tab to new group". Give it a name (e.g., "Work").
+2.  **Create a Subgroup:** Drag a tab that is already in "Work" and create a *new* group with it. The new group will automatically be named "Work-1" and become a child of "Work".
+3.  **Manage Hierarchies:** 
+    - Click the "Work" group header to collapse it. All "Work-1", "Work-2", etc., tabs will disappear.
+    - Click again to expand. The subgroups will reappear as small, collapsed headers.
+4.  **Deep Nesting:** You can repeat this process (e.g., creating a subgroup from "Work-1") to create N-levels of organization.
+
+## Technical Details
+
+- **Privacy:** All tab data (URLs and titles) is stored locally on your machine using `chrome.storage.local`. No data ever leaves your browser.
+- **Efficiency:** The extension uses persistent ID mapping rather than title parsing, ensuring it never loses track of your groups even if you rename them.
+
+## Permissions
+
+- `tabGroups`: Used to create and organize groups.
+- `tabs`: Used to save and restore tab URLs.
+- `storage`: Used to persist your group hierarchies across browser restarts.
+
+## Privacy Policy
 
 ## Intro
 

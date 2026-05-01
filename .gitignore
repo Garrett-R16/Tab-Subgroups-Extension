@@ -1,0 +1,4 @@
+node_modules/
+test-results/
+.last-run.json
+package-lock.json
