@@ -7,6 +7,7 @@
  * @property {boolean} isCollapsed - Tracks if child tabs are saved
  * @property {string} color - Inherited color from root parent
  * @property {string} subTitle - Custom sub-title for the group
+ * @property {number} relativeOrder - Relative position among siblings
  * @property {Array<{url: string, title: string, pinned: boolean}>} savedTabs - Tabs removed when parent collapsed
  */
 
@@ -36,25 +37,61 @@ async function getRootColor(groupId) {
     }
 }
 
-async function recursiveMove(parentId) {
+async function updateSiblingOrder(parentId) {
+    const siblings = subGroupArray.filter(s => s.parentId == parentId);
+    const sortedSiblings = [];
+    for (const s of siblings) {
+        if (!s.isCollapsed) {
+            try {
+                const tabs = await chrome.tabs.query({ groupId: s.childId });
+                if (tabs.length > 0) {
+                    sortedSiblings.push({ s, index: tabs[0].index });
+                }
+            } catch (e) {}
+        }
+    }
+    
+    sortedSiblings.sort((a, b) => a.index - b.index);
+    
+    sortedSiblings.forEach((item, i) => {
+        item.s.relativeOrder = i;
+    });
+    
+    if (sortedSiblings.length > 0) {
+        saveStorage();
+    }
+}
+
+async function recursiveMove(parentId, retryCount = 0) {
     const children = subGroupArray.filter(s => s.parentId == parentId && !s.isCollapsed);
     if (children.length === 0) return;
 
-    const parentTabs = await chrome.tabs.query({ groupId: parentId });
-    if (parentTabs.length === 0) return;
-    
-    const lastParentTabIndex = Math.max(...parentTabs.map(t => t.index));
-    let nextIndex = lastParentTabIndex + 1;
+    // Sort children by their saved relative order
+    children.sort((a, b) => (a.relativeOrder || 0) - (b.relativeOrder || 0));
 
-    for (const child of children) {
-        try {
+    try {
+        const parentTabs = await chrome.tabs.query({ groupId: parseInt(parentId) });
+        if (parentTabs.length === 0) return;
+        
+        const lastParentTabIndex = Math.max(...parentTabs.map(t => t.index));
+        let nextIndex = lastParentTabIndex + 1;
+
+        for (const child of children) {
+            // Move the child group
             await chrome.tabGroups.move(child.childId, { index: nextIndex });
+            
             const childTabs = await chrome.tabs.query({ groupId: child.childId });
             if (childTabs.length > 0) {
                 nextIndex = Math.max(...childTabs.map(t => t.index)) + 1;
             }
+
             await recursiveMove(child.childId);
-        } catch (e) {}
+        }
+    } catch (e) {
+        if (e.message.includes("dragging") && retryCount < 5) {
+            // Wait and retry if the user is currently dragging a tab
+            setTimeout(() => recursiveMove(parentId, retryCount + 1), 200 * (retryCount + 1));
+        }
     }
 }
 
@@ -62,12 +99,26 @@ chrome.tabGroups.onUpdated.addListener(groupUpdated);
 chrome.tabGroups.onCreated.addListener(tabCreated);
 chrome.tabGroups.onRemoved.addListener(onGroupDeleted);
 chrome.tabGroups.onMoved.addListener(async (group) => {
+    const sub = subGroupArray.find(s => s.childId == group.id);
+    if (sub) {
+        await updateSiblingOrder(sub.parentId);
+    }
     await recursiveMove(group.id);
     await refreshIds();
 });
 
 chrome.tabs.onUpdated.addListener(tabUpdateListener);
 chrome.tabs.onRemoved.addListener(refreshIds);
+chrome.tabs.onMoved.addListener(async (tabId, moveInfo) => {
+    const tab = await chrome.tabs.get(tabId);
+    if (tab.groupId !== -1) {
+        const sub = subGroupArray.find(s => s.childId == tab.groupId);
+        if (sub) {
+            await updateSiblingOrder(sub.parentId);
+        }
+    }
+    await refreshIds();
+});
 
 (async () => {
     await loadStorage();
@@ -104,7 +155,7 @@ async function refreshIds() {
 }
 
 function tabUpdateListener(tabId, changeInfo, tab) {
-    if (changeInfo.status === 'complete' || changeInfo.url) {
+    if (changeInfo.status === 'complete' || changeInfo.url || changeInfo.groupId !== undefined) {
         refreshIds();
     }
 }
@@ -118,6 +169,7 @@ function newTitle(count, subTitle, mainTitle) {
 }
 
 async function recursiveCollapse(groupId) {
+    await updateSiblingOrder(groupId);
     const children = subGroupArray.filter(s => s.parentId == groupId);
     for (const child of children) {
         if (!child.isCollapsed) {
@@ -139,6 +191,9 @@ async function recursiveCollapse(groupId) {
 
 async function recursiveExpand(parentId) {
     const children = subGroupArray.filter(s => s.parentId == parentId);
+    // Sort children by saved relative order
+    children.sort((a, b) => (a.relativeOrder || 0) - (b.relativeOrder || 0));
+
     for (const child of children) {
         if (child.isCollapsed && child.savedTabs.length > 0) {
             try {
@@ -159,7 +214,7 @@ async function recursiveExpand(parentId) {
 
                 const oldChildId = child.childId;
                 child.childId = newGroupId;
-                child.isCollapsed = true; 
+                child.isCollapsed = false; 
                 child.savedTabs = []; 
 
                 subGroupArray.forEach(s => {
@@ -169,6 +224,9 @@ async function recursiveExpand(parentId) {
                 });
                 
                 saveStorage();
+
+                // Ensure the re-opened group is positioned correctly
+                await recursiveMove(parentId);
             } catch (e) {}
         }
     }
@@ -176,64 +234,101 @@ async function recursiveExpand(parentId) {
 
 async function groupUpdated(group) {
     if (group.collapsed !== undefined) {
-        if (group.collapsed) {
-            await recursiveCollapse(group.id);
-        } else {
-            await recursiveExpand(group.id);
-        }
+        try {
+            if (group.collapsed) {
+                await recursiveCollapse(group.id);
+            } else {
+                await recursiveExpand(group.id);
+            }
+        } catch (e) {}
     }
 
     subGroupArray.forEach(subGroup => {
-        if (subGroup.parentId == group.id && group.color && group.color != subGroup.color) {
-            subGroup.color = group.color;
-            if (!subGroup.isCollapsed) {
-                chrome.tabGroups.update(subGroup.childId, { color: subGroup.color }).catch(()=>{});
+        try {
+            // Inherit color from parent
+            if (subGroup.parentId == group.id && group.color && group.color != subGroup.color) {
+                subGroup.color = group.color;
+                if (!subGroup.isCollapsed) {
+                    chrome.tabGroups.update(subGroup.childId, { color: subGroup.color }).catch(()=>{});
+                }
+                saveStorage();
             }
-            saveStorage();
-        }
 
-        if (subGroup.childId == group.id && group.title && group.title.substring(0, subGroup.name.length) != subGroup.name) {
-            let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.name);
-            if (Title != group.title) {
-                subGroup.subTitle = group.title;
-            }
-            
-            if (group.title == "$b") {
-                subGroup.subTitle = "";
+            // Handle title updates
+            if (subGroup.childId == group.id && group.title && group.title.substring(0, subGroup.name.length) != subGroup.name) {
                 let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.name);
-                chrome.tabGroups.update(group.id, { title: Title }).catch(()=>{});
+                if (Title != group.title) {
+                    subGroup.subTitle = group.title;
+                }
+                
+                if (group.title == "$b") {
+                    subGroup.subTitle = "";
+                    let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.name);
+                    chrome.tabGroups.update(group.id, { title: Title }).catch(()=>{});
+                }
+                saveStorage();
+            } else if (subGroup.parentId == group.id && group.title && subGroup.name != group.title) {
+                subGroup.name = group.title;
+                if (!subGroup.isCollapsed) {
+                    let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.name);
+                    chrome.tabGroups.update(subGroup.childId, { title: Title }).catch(()=>{});
+                }
+                saveStorage();
             }
-            saveStorage();
-        } else if (subGroup.parentId == group.id && group.title && subGroup.name != group.title) {
-            subGroup.name = group.title;
-            if (!subGroup.isCollapsed) {
-                let Title = newTitle(subGroup.count, subGroup.subTitle, subGroup.name);
-                chrome.tabGroups.update(subGroup.childId, { title: Title }).catch(()=>{});
-            }
-            saveStorage();
-        }
+        } catch (e) {}
     });
 }
 
-function onGroupDeleted(group) {
+async function onGroupDeleted(group) {
     const wasChild = subGroupArray.find(s => s.childId == group.id);
 
     if (wasChild && wasChild.isCollapsed) {
         return; 
     }
 
-    subGroupArray = subGroupArray.filter(s => {
-        if (s.childId == group.id) return false;
-        if (s.parentId == group.id) {
-            return false;
+    // Recursively find and delete all descendants
+    const descendants = [];
+    const findDescendants = (pid) => {
+        const children = subGroupArray.filter(s => s.parentId == pid);
+        for (const child of children) {
+            descendants.push(child);
+            findDescendants(child.childId);
         }
-        return true;
-    });
+    };
+    findDescendants(group.id);
+
+    // Remove tabs of expanded descendants
+    for (const desc of descendants) {
+        if (!desc.isCollapsed) {
+            try {
+                const tabs = await chrome.tabs.query({ groupId: desc.childId });
+                for (const tab of tabs) {
+                    await chrome.tabs.remove(tab.id);
+                }
+            } catch (e) {
+                // If we can't remove right now (e.g. dragging), we'll try again shortly
+                if (e.message.includes("dragging")) {
+                    setTimeout(() => onGroupDeleted(group), 500);
+                    return;
+                }
+            }
+        }
+    }
+
+    // Filter out the deleted group and all its descendants from storage
+    const descIds = descendants.map(d => d.childId);
+    subGroupArray = subGroupArray.filter(s => 
+        s.childId != group.id && 
+        s.parentId != group.id && 
+        !descIds.includes(s.childId)
+    );
+
     saveStorage();
     refreshIds();
 }
 
 async function tabCreated(group) {
+    const snapshotIds = [...prevIds]; 
     await new Promise(r => setTimeout(r, 200));
     
     const tabs = await chrome.tabs.query({ groupId: group.id });
@@ -241,15 +336,31 @@ async function tabCreated(group) {
 
     let parentGroupId = -1;
     for (const tab of tabs) {
-        const prevTab = prevIds.find(t => t.id === tab.id);
+        const prevTab = snapshotIds.find(t => t.id === tab.id);
         if (prevTab && prevTab.groupId !== -1 && prevTab.groupId !== group.id) {
             parentGroupId = prevTab.groupId;
             break;
         }
     }
+    
+    if (parentGroupId === -1) {
+        for (const tab of tabs) {
+            const prevTab = prevIds.find(t => t.id === tab.id);
+            if (prevTab && prevTab.groupId !== -1 && prevTab.groupId !== group.id) {
+                parentGroupId = prevTab.groupId;
+                break;
+            }
+        }
+    }
 
     if (parentGroupId !== -1) {
         try {
+            const existing = subGroupArray.find(s => s.childId == group.id);
+            if (existing) return;
+            
+            const beingExpanded = subGroupArray.find(s => s.parentId == parentGroupId && s.isCollapsed);
+            if (beingExpanded) return;
+
             const parentGroup = await chrome.tabGroups.get(parentGroupId);
             const rootColor = await getRootColor(parentGroupId);
             const count = subGroupArray.filter(s => s.parentId == parentGroupId).length + 1;
