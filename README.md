@@ -5,8 +5,10 @@ Organize your browser by nesting tab groups inside each other. Create powerful h
 ## Features
 
 - **Nested Grouping:** Create subgroups by moving tabs from one group into another.
-- **Recursive Collapse:** When you collapse a parent group, all its child subgroups are automatically saved and removed from the browser to save space.
-- **Recursive Expand:** When you un-collapse a parent, its direct children are restored in a neat, collapsed state.
+- **Hierarchy Side Panel:** A side panel (toolbar icon) renders the real tree — root group, indented subgroups, tabs — since the browser tab strip itself cannot nest groups. Click a tab to focus it, click a group header to collapse/expand it.
+- **Indentation Markers:** Subgroup headers in the tab strip are prefixed with `↳` (one per nesting level), so the hierarchy is readable there too.
+- **Recursive Collapse (no tab loss):** Collapsing a parent parks its subgroup tabs *inside* the parent group instead of closing them. The browser hides them because the parent is collapsed. Nothing is closed, nothing reloads: scroll position, form state, session and back/forward history all survive.
+- **Recursive Expand:** Un-collapsing a parent regroups the very same tabs back into their subgroup, restored collapsed. Tabs are only ever re-created as a last resort, when the original tab is genuinely gone (e.g. it was closed while parked).
 - **Color Inheritance:** Subgroups automatically match the color of their highest-level ancestor ("root parent").
 - **Smart Priority:** When creating a group from multiple tabs, the leftmost tab that already belongs to a group determines the parent.
 - **Naming Control:**
@@ -27,6 +29,11 @@ Organize your browser by nesting tab groups inside each other. Create powerful h
 
 - **Privacy:** All tab data (URLs and titles) is stored locally on your machine using `chrome.storage.local`. No data ever leaves your browser.
 - **Efficiency:** The extension uses persistent ID mapping rather than title parsing, ensuring it never loses track of your groups even if you rename them.
+- **Parking instead of destroying:** `recursiveCollapse` moves child tabs into the collapsed ancestor via `chrome.tabs.group({ tabIds, groupId })`; `recursiveExpand` resolves them back by tab ID, falling back to URL matching (after a browser restart, when IDs change) and only then to re-creating a tab.
+- **No self-inflicted event storms:** every write the extension performs is marked (`markEcho`) and every batch runs inside a reentrancy guard, so the extension's own `onMoved` / `onCreated` / `onUpdated` events no longer trigger another round of moves. Reordering is debounced into a single pass.
+- **Nesting is a UI limitation, not a bug:** neither Chrome nor Edge supports nested tab groups, and `chrome.tabGroups` exposes no way to indent one group under another in the native tab strip. The side panel exists to provide the genuine hierarchical view.
+
+> Note: `tests/e2e/bug_repro.spec.ts` still asserts the old behaviour (that subgroup tabs are *closed* on collapse). With parking, those tabs stay alive inside the parent group, so that assertion needs updating before the suite is meaningful again.
 
 ## Permissions
 

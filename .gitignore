@@ -2,3 +2,8 @@ node_modules/
 test-results/
 .last-run.json
 package-lock.json
+
+# Visual Studio / editor local state
+.vs/
+*.user
+*.suo
