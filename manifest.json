@@ -1,7 +1,7 @@
 {
     "name": "MoreGroups - subgroup your tabs",
     "manifest_version": 3,
-    "version": "2.0.0",
+    "version": "2.1.0",
     "icons": {
         "16": "icon_16.png",
         "48": "icon_48.png",
@@ -12,9 +12,22 @@
         "service_worker": "service-worker.js",
         "type": "module"
     },
+    "action": {
+        "default_title": "MoreGroups - abrir arvore de grupos",
+        "default_icon": {
+            "16": "icon_16.png",
+            "48": "icon_48.png",
+            "128": "icon_128.png"
+        }
+    },
+    "side_panel": {
+        "default_path": "sidepanel.html"
+    },
     "permissions": [
         "tabGroups",
         "tabs",
-        "storage"
+        "storage",
+        "sidePanel",
+        "favicon"
     ]
 }
